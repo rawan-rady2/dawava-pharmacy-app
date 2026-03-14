@@ -1,0 +1,190 @@
+<div class="container">
+    <div class="main-container">
+
+        <!-- Left Side -->
+        <div class="left-side">
+            <div class="image-fill">
+                <div class="svg-placeholder"></div>
+            </div>
+
+            <div class="abstract-decorative-element">
+                <svg viewBox="0 0 300 300" fill="none" preserveAspectRatio="none">
+                    <g opacity="0.1">
+                        <path [attr.d]="svgPaths.decorative" fill="white" />
+                    </g>
+                </svg>
+            </div>
+
+            <div class="left-content">
+                <div class="logo-header">
+                    <div class="logo-icon">
+                        <svg viewBox="0 0 30 30" fill="none" preserveAspectRatio="none">
+                            <path [attr.d]="svgPaths.medicalBag" fill="white" />
+                        </svg>
+                    </div>
+                    <h2 class="brand-name">Dawava</h2>
+                </div>
+
+                <h1 class="main-heading">Precision in Pharmacy<br>Management</h1>
+
+                <p class="description">
+                    Secure access for healthcare professionals to<br>
+                    manage prescriptions, inventory, and patient<br>
+                    care with clinical accuracy.
+                </p>
+            </div>
+
+            <div class="hipaa-badge">
+                <div class="hipaa-badge-content">
+                    <div class="shield-icon">
+                        <svg viewBox="0 0 16 20" fill="none" preserveAspectRatio="none">
+                            <path [attr.d]="svgPaths.shield" fill="rgba(255, 255, 255, 0.9)" />
+                        </svg>
+                    </div>
+                    <div class="hipaa-text">
+                        HIPAA Compliant &amp; End-to-End Encrypted<br>Environment
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- Right Side -->
+        <div class="right-side">
+            <div class="form-wrapper">
+
+                <div class="form-header">
+                    <div class="lock-badge">
+                        <div class="lock-icon">
+                            <svg viewBox="0 0 16 21" fill="none" preserveAspectRatio="none">
+                                <path [attr.d]="svgPaths.lock" fill="#14B8A5" />
+                            </svg>
+                        </div>
+                    </div>
+                    <h3 class="form-title">Provider Login</h3>
+                    <p class="form-subtitle">
+                        Please enter your credentials to access the<br>pharmacy terminal.
+                    </p>
+                </div>
+
+                @if (errorMessage) {
+                <div class="error-message">{{ errorMessage }}</div>
+                }
+
+                <form [formGroup]="loginForm" (ngSubmit)="onSubmit()" class="login-form">
+
+                    <!-- Email -->
+                    <div class="form-group">
+                        <label class="form-label" for="email">Email Address</label>
+                        <div class="input-wrapper" [class.error]="email?.invalid && email?.touched">
+                            <div class="input-icon">
+                                <svg viewBox="0 0 13.3333 13.3333" fill="none" preserveAspectRatio="none">
+                                    <path [attr.d]="svgPaths.user" fill="#94A3B8" />
+                                </svg>
+                            </div>
+                            <input type="email" id="email" class="form-input" placeholder="yourname@gmail.com"
+                                formControlName="email" autocomplete="email"
+                                [class.error]="email?.invalid && email?.touched" />
+                        </div>
+                        @if (email?.invalid && email?.touched) {
+                        <div class="error-text">
+                            @if (email?.errors?.['required']) {
+                            <span>Email address is required.</span>
+                            }
+                            @if (email?.errors?.['email']) {
+                            <span>Please enter a valid email address.</span>
+                            }
+                        </div>
+                        }
+                    </div>
+
+                    <!-- Password -->
+                    <div class="form-group">
+                        <div class="password-label-row">
+                            <label class="form-label" for="password">Password</label>
+
+                            <!-- ✅ Fixed: button instead of anchor — no href, no javascript:void(0) -->
+                            <button type="button" class="forgot-password" (click)="openForgotPasswordModal()">
+                                Forgot Password?
+                            </button>
+
+                        </div>
+                        <div class="input-wrapper" [class.error]="password?.invalid && password?.touched">
+                            <div class="input-icon">
+                                <svg viewBox="0 0 13.3333 17.5" fill="none" preserveAspectRatio="none">
+                                    <path [attr.d]="svgPaths.lockSmall" fill="#94A3B8" />
+                                </svg>
+                            </div>
+                            <input [type]="showPassword ? 'text' : 'password'" id="password" class="form-input"
+                                placeholder="••••••••" formControlName="password" autocomplete="current-password"
+                                [class.error]="password?.invalid && password?.touched" />
+                            <button type="button" class="toggle-password" (click)="togglePasswordVisibility()">
+                                <svg viewBox="0 0 18.3333 12.5" fill="none" preserveAspectRatio="none">
+                                    <path [attr.d]="svgPaths.eye" fill="#94A3B8" />
+                                </svg>
+                            </button>
+                        </div>
+                        @if (password?.invalid && password?.touched) {
+                        <div class="error-text">
+                            @if (password?.errors?.['required']) {
+                            <span>Password is required.</span>
+                            }
+                            @if (password?.errors?.['minlength']) {
+                            <span>Password must be at least 6 characters.</span>
+                            }
+                        </div>
+                        }
+                    </div>
+
+                    <!-- Remember Me -->
+                    <div class="remember-me">
+                        <input type="checkbox" id="remember" class="custom-checkbox" formControlName="rememberMe" />
+                        <label for="remember" class="checkbox-label">Remember this device</label>
+                    </div>
+
+                    <!-- Submit -->
+                    <button type="submit" class="submit-button" [disabled]="isLoading">
+                        @if (!isLoading) {
+                        <span>
+                            Sign In to Dashboard
+                            <svg viewBox="0 0 15 15" fill="none" preserveAspectRatio="none">
+                                <path [attr.d]="svgPaths.arrowRight" fill="white" />
+                            </svg>
+                        </span>
+                        }
+                        @if (isLoading) {
+                        <span class="loading-text">Signing In...</span>
+                        }
+                    </button>
+
+                </form>
+
+                <div class="form-footer">
+                    <p class="support-text">
+                        Technical issues?
+                        <!-- ✅ Fixed: button instead of anchor -->
+                        <button type="button" class="support-link" (click)="onContactSupport()">
+                            Contact IT Support
+                        </button>
+                    </p>
+                    <div class="regulatory-logos">
+                        <div class="regulatory-logo">
+                            <img src="assets/images/png-transparent-pharmacy-symbol-logo-circle-isolated-snake-glass.png"
+                                alt="Pharmacy Symbol" />
+                        </div>
+                    </div>
+                </div>
+
+            </div>
+        </div>
+
+    </div>
+</div>
+
+<!-- Forgot Password Modal -->
+@if (showForgotPasswordModal) {
+<app-forgot-password-modal (closeModal)="closeForgotPasswordModal()" />
+}
+<!--  IT Support Modal -->
+@if (showItSupportModal) {
+<app-it-support-modal (closeModal)="closeItSupportModal()" />
+}

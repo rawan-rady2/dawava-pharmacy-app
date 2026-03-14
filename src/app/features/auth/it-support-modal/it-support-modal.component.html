@@ -1,0 +1,131 @@
+<div class="support-backdrop" (click)="onBackdropClick($event)">
+    <div class="support-card" role="dialog" aria-modal="true" aria-labelledby="support-title">
+
+        <!-- Close -->
+        <button class="close-btn" type="button" (click)="onClose()" aria-label="Close">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"
+                stroke-linejoin="round">
+                <line x1="18" y1="6" x2="6" y2="18" />
+                <line x1="6" y1="6" x2="18" y2="18" />
+            </svg>
+        </button>
+
+        <!-- Header -->
+        <div class="support-header">
+            <div class="support-icon-wrap">
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"
+                    stroke-linejoin="round">
+                    <path d="M21 15a2 2 0 01-2 2H7l-4 4V5a2 2 0 012-2h14a2 2 0 012 2z" />
+                </svg>
+            </div>
+            <div class="support-header-text">
+                <h2 class="support-title" id="support-title">IT Support</h2>
+                <p class="support-subtitle">We are here to help you</p>
+            </div>
+        </div>
+
+        <!-- Divider -->
+        <div class="support-divider"></div>
+
+        <!-- Brand strip -->
+        <div class="support-brand-strip">
+            <div class="brand-dot"></div>
+            <span class="brand-strip-text">Dawava Pharmacy — Technical Support Team</span>
+        </div>
+
+        <!-- Contact cards -->
+        <div class="contact-list">
+
+            @for (contact of contacts; track $index) {
+            <div class="contact-row">
+
+                <!-- Icon -->
+                <div class="contact-icon">
+
+                    @if (contact.icon === 'email') {
+                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"
+                        stroke-linejoin="round">
+                        <rect x="2" y="4" width="20" height="16" rx="2" />
+                        <path d="M22 7l-10 7L2 7" />
+                    </svg>
+                    }
+
+                    @if (contact.icon === 'phone') {
+                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"
+                        stroke-linejoin="round">
+                        <path
+                            d="M22 16.92v3a2 2 0 01-2.18 2 19.79 19.79 0 01-8.63-3.07A19.5 19.5 0 013.07 10.8a19.79 19.79 0 01-3.07-8.67A2 2 0 012 0h3a2 2 0 012 1.72c.127.96.361 1.903.7 2.81a2 2 0 01-.45 2.11L6.09 7.91a16 16 0 006 6l1.27-1.27a2 2 0 012.11-.45c.907.339 1.85.573 2.81.7A2 2 0 0122 16.92z" />
+                    </svg>
+                    }
+
+                    @if (contact.icon === 'hours') {
+                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"
+                        stroke-linejoin="round">
+                        <circle cx="12" cy="12" r="10" />
+                        <path d="M12 6v6l4 2" />
+                    </svg>
+                    }
+
+                    @if (contact.icon === 'response') {
+                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"
+                        stroke-linejoin="round">
+                        <path d="M22 11.08V12a10 10 0 11-5.93-9.14" />
+                        <path d="M22 4L12 14.01l-3-3" />
+                    </svg>
+                    }
+
+                </div>
+
+                <!-- Info -->
+                <div class="contact-info">
+                    <span class="contact-label">{{ contact.label }}</span>
+                    <span class="contact-value" [class.clickable]="contact.action !== 'text'"
+                        (click)="contact.action !== 'text' && onAction(contact)">
+                        {{ contact.value }}
+                    </span>
+                </div>
+
+                <!-- Copy / Action button -->
+                @if (contact.action !== 'text') {
+                <button type="button" class="copy-btn" [class.copied]="copiedIndex === $index"
+                    (click)="copyToClipboard(contact.value, $index)" [attr.aria-label]="'Copy ' + contact.label">
+
+                    @if (copiedIndex === $index) {
+                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round"
+                        stroke-linejoin="round">
+                        <path d="M20 6L9 17l-5-5" />
+                    </svg>
+                    } @else {
+                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"
+                        stroke-linejoin="round">
+                        <rect x="9" y="9" width="13" height="13" rx="2" />
+                        <path d="M5 15H4a2 2 0 01-2-2V4a2 2 0 012-2h9a2 2 0 012 2v1" />
+                    </svg>
+                    }
+
+                </button>
+                }
+
+            </div>
+            }
+
+        </div>
+
+        <!-- Footer note -->
+        <div class="support-footer">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"
+                stroke-linejoin="round">
+                <circle cx="12" cy="12" r="10" />
+                <path d="M12 8v4M12 16h.01" />
+            </svg>
+            <p>For urgent issues outside working hours, please send an email and our on-call team will respond as soon
+                as possible.</p>
+        </div>
+
+        <!-- Close button -->
+        <button type="button" class="dismiss-btn" (click)="onClose()">
+            Close
+        </button>
+
+    </div>
+</div>
