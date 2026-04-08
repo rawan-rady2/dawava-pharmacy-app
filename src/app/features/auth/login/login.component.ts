@@ -9,7 +9,7 @@ import {
 import { Router, RouterModule } from '@angular/router';
 import { AuthService } from '../../../core/services/auth.service';
 import { ForgotPasswordModalComponent } from '../forgot-password-modal/forgot-password-modal.component';
-import { ItSupportModalComponent } from '../it-support-modal/it-support-modal.component'; // ✅ added
+import { ItSupportModalComponent } from '../it-support-modal/it-support-modal.component';
 
 @Component({
   selector: 'app-login',
@@ -19,7 +19,7 @@ import { ItSupportModalComponent } from '../it-support-modal/it-support-modal.co
     ReactiveFormsModule,
     RouterModule,
     ForgotPasswordModalComponent,
-    ItSupportModalComponent, // ✅ added
+    ItSupportModalComponent,
   ],
   templateUrl: './login.component.html',
   styleUrl: './login.component.css',
@@ -36,11 +36,15 @@ export class LoginComponent implements OnInit {
     rememberMe: [false],
   });
 
-  showPassword             = false;
-  isLoading                = false;
-  errorMessage             = '';
-  showForgotPasswordModal  = false;
-  showItSupportModal       = false; // ✅ added
+  showPassword            = false;
+  isLoading               = false;
+  errorMessage            = '';
+  showForgotPasswordModal = false;
+  showItSupportModal      = false;
+
+  // SECURITY: rate limiting — minimum 2 seconds between submissions
+  private lastSubmitTime      = 0;
+  private readonly COOLDOWN_MS = 2000;
 
   svgPaths = {
     decorative:
@@ -73,11 +77,17 @@ export class LoginComponent implements OnInit {
 
   openForgotPasswordModal(): void  { this.showForgotPasswordModal = true;  }
   closeForgotPasswordModal(): void { this.showForgotPasswordModal = false; }
-
-  openItSupportModal(): void  { this.showItSupportModal = true;  }  // ✅ added
-  closeItSupportModal(): void { this.showItSupportModal = false; } // ✅ added
+  openItSupportModal(): void       { this.showItSupportModal = true;       }
+  closeItSupportModal(): void      { this.showItSupportModal = false;      }
 
   onSubmit(): void {
+    // SECURITY: frontend rate limiting — prevents rapid repeated submissions
+    const now = Date.now();
+    if (now - this.lastSubmitTime < this.COOLDOWN_MS) {
+      return;
+    }
+    this.lastSubmitTime = now;
+
     this.loginForm.markAllAsTouched();
     if (this.loginForm.invalid) return;
 
@@ -99,12 +109,13 @@ export class LoginComponent implements OnInit {
         },
         error: (err: Error) => {
           this.isLoading    = false;
+          // SECURITY: display generic message from service — never raw error
           this.errorMessage = err.message;
         },
       });
   }
 
   onContactSupport(): void {
-    this.openItSupportModal(); // ✅ now opens modal instead of mailto directly
+    this.openItSupportModal();
   }
 }

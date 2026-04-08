@@ -1,12 +1,10 @@
 import { HttpInterceptorFn } from '@angular/common/http';
 
 export const tokenInterceptor: HttpInterceptorFn = (req, next) => {
-  const token = localStorage.getItem('dawava_token');
-
-  console.log(
-    '[Interceptor]', req.method, req.url,
-    '| Token present:', !!token
-  );
+  // Read token from sessionStorage first, fallback to localStorage
+  const token =
+    sessionStorage.getItem('dawava_token') ||
+    localStorage.getItem('dawava_token');
 
   if (token) {
     const authReq = req.clone({

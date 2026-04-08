@@ -1,213 +1,266 @@
-import { Component, EventEmitter, Output, inject, NgZone } from '@angular/core';
+import {
+  Component, EventEmitter, Output, NgZone, inject, OnDestroy, ChangeDetectorRef
+} from '@angular/core';
 import { CommonModule } from '@angular/common';
 import {
-  ReactiveFormsModule,
-  FormBuilder,
-  FormGroup,
-  Validators,
-  AbstractControl,
-  ValidatorFn,
+  ReactiveFormsModule, FormBuilder, FormGroup,
+  Validators, ValidatorFn, AbstractControl
 } from '@angular/forms';
-
-type Step = 'email' | 'otp' | 'newPassword' | 'success';
-
-// ── Validators defined OUTSIDE the class as standalone functions ──────────────
-// This is required — Angular validators cannot be regular class methods
+import { HttpClient } from '@angular/common/http';
+import { interval, Subscription } from 'rxjs';
+import { take } from 'rxjs/operators';
 
 const strongPasswordValidator: ValidatorFn = (control: AbstractControl) => {
   const value = control.value || '';
-  const hasUpper  = /[A-Z]/.test(value);
-  const hasNumber = /\d/.test(value);
-  const hasSymbol = /[!@#$%^&*()_+\-=\[\]{};':"\\|,.<>\/?]/.test(value);
-  if (!hasUpper || !hasNumber || !hasSymbol) {
-    return { weakPassword: true };
-  }
-  return null;
+  const hasUpper   = /[A-Z]/.test(value);
+  const hasLower   = /[a-z]/.test(value);
+  const hasNumber  = /[0-9]/.test(value);
+  const hasSpecial = /[!@#$%^&*(),.?":{}|<>]/.test(value);
+  const isValid    = hasUpper && hasLower && hasNumber && hasSpecial && value.length >= 8;
+  return isValid ? null : { weakPassword: true };
 };
 
 const passwordMatchValidator: ValidatorFn = (group: AbstractControl) => {
-  const pw  = group.get('password')?.value;
-  const cpw = group.get('confirmPassword')?.value;
-  return pw === cpw ? null : { mismatch: true };
+  const pw      = group.get('newPassword')?.value;
+  const confirm = group.get('confirmPassword')?.value;
+  return pw === confirm ? null : { mismatch: true };
 };
 
+type ForgotStep = 'email' | 'otp' | 'newPassword' | 'success';
+
 @Component({
-  selector: 'app-forgot-password-modal',
-  standalone: true,
-  imports: [CommonModule, ReactiveFormsModule],
+  selector:    'app-forgot-password-modal',
+  standalone:  true,
+  imports:     [CommonModule, ReactiveFormsModule],
   templateUrl: './forgot-password-modal.component.html',
-  styleUrl: './forgot-password-modal.component.css',
+  styleUrls: ['./forgot-password-modal.component.css'],
 })
-export class ForgotPasswordModalComponent {
+export class ForgotPasswordModalComponent implements OnDestroy {
   @Output() closeModal = new EventEmitter<void>();
 
   private fb   = inject(FormBuilder);
+  private http = inject(HttpClient);
   private zone = inject(NgZone);
+  private cdr  = inject(ChangeDetectorRef); // ← FIX #3
 
-  currentStep: Step   = 'email';
-  isLoading           = false;
-  submittedEmail      = '';
-  showNewPassword     = false;
-  resendCountdown     = 40;
-  resendInterval: any = null;
-  otpDigits           = ['', '', '', '', ''];
+  currentStep: ForgotStep = 'email';
+  isLoading               = false;
+  errorMessage            = '';
 
-  // ── Forms ──────────────────────────────────────────────────────────────────
+  private submittedEmail = '';
+  private resetToken     = '';
+
+  resendCountdown  = 0;
+  private countdownSub: Subscription | null = null; // ← FIX #3: RxJS instead of setInterval
 
   emailForm: FormGroup = this.fb.group({
     email: ['', [Validators.required, Validators.email]],
   });
 
-  newPasswordForm: FormGroup = this.fb.group(
+  otpForm: FormGroup = this.fb.group({
+    otp: ['', [Validators.required, Validators.pattern(/^\d{6}$/)]],
+  });
+
+  passwordForm: FormGroup = this.fb.group(
     {
-      password:        ['', [Validators.required, Validators.minLength(8), strongPasswordValidator]],
-      confirmPassword: ['', [Validators.required]],
+      newPassword:     ['', [Validators.required, strongPasswordValidator]],
+      confirmPassword: ['', Validators.required],
     },
     { validators: passwordMatchValidator }
   );
 
-  // ── Getters ────────────────────────────────────────────────────────────────
-
-  get email()           { return this.emailForm.get('email');                    }
-  get newPassword()     { return this.newPasswordForm.get('password');           }
-  get confirmPassword() { return this.newPasswordForm.get('confirmPassword');    }
-  get otpValue()        { return this.otpDigits.join('');                        }
-  get otpComplete()     { return this.otpDigits.every(d => d !== '');            }
-
-  // ── Step 1: Submit email ───────────────────────────────────────────────────
+  get email()           { return this.emailForm.get('email');              }
+  get otp()             { return this.otpForm.get('otp');                  }
+  get newPassword()     { return this.passwordForm.get('newPassword');     }
+  get confirmPassword() { return this.passwordForm.get('confirmPassword'); }
+  get maskedEmail()     { return this.maskEmail(this.submittedEmail);      }
+  get resendCountdownDisplay(): string {
+    const minutes = Math.floor(this.resendCountdown / 60);
+    const seconds = this.resendCountdown % 60;
+    return `${minutes}:${seconds.toString().padStart(2, '0')}`;
+  }
 
   onSubmitEmail(): void {
     this.emailForm.markAllAsTouched();
     if (this.emailForm.invalid) return;
 
+    this.isLoading      = true;
+    this.errorMessage   = '';
     this.submittedEmail = this.emailForm.value.email.trim();
-    console.log('[ForgotPassword] Sending OTP to:', this.submittedEmail);
 
-    // ✅ Direct assignment — no setTimeout, no delay
-    // Change detection runs immediately inside NgZone
-    this.zone.run(() => {
-      this.currentStep = 'otp';
-      this.startResendCountdown();
+    this.http.post<any>('/api/auth/forgot-password/request-otp', {
+      email: this.submittedEmail
+    }).subscribe({
+      next: () => {
+        this.isLoading   = false;
+        this.currentStep = 'otp';       // ← FIX #2: no zone.run needed, just assign
+        this.startResendCountdown();
+        this.cdr.markForCheck();
+      },
+      error: (err) => {
+        this.isLoading    = false;
+        this.errorMessage = this.extractError(err);
+        this.cdr.markForCheck();
+      },
     });
   }
 
-  // ── Step 2: OTP input handling ─────────────────────────────────────────────
+  onSubmitOtp(): void {
+    this.otpForm.markAllAsTouched();
+    if (this.otpForm.invalid) return;
+
+    this.isLoading    = true;
+    this.errorMessage = '';
+
+    const body = {
+      email:    this.submittedEmail,
+      otp_code: this.otpForm.value.otp.trim(),
+    };
+
+    this.http.post<any>('/api/auth/forgot-password/verify-otp', body)
+      .subscribe({
+        next: (res) => {
+          this.resetToken  = res?.reset_token || res?.token || res?.data?.reset_token || '';
+          this.isLoading   = false;
+          this.currentStep = 'newPassword';
+          this.stopCountdown();
+          this.cdr.markForCheck();
+        },
+        error: (err) => {
+          this.isLoading    = false;
+          this.errorMessage = this.extractError(err);
+          this.cdr.markForCheck();
+        },
+      });
+  }
+
+  onSubmitPassword(): void {
+    this.passwordForm.markAllAsTouched();
+    if (this.passwordForm.invalid) return;
+
+    this.isLoading    = true;
+    this.errorMessage = '';
+
+    const body = {
+      reset_token:  this.resetToken,
+      new_password: this.passwordForm.value.newPassword,
+    };
+
+    this.http.post<any>('/api/auth/forgot-password/reset', body)
+      .subscribe({
+        next: () => {
+          this.isLoading   = false;
+          this.currentStep = 'success';
+          this.cdr.markForCheck();
+        },
+        error: (err) => {
+          this.isLoading    = false;
+          this.errorMessage = this.extractError(err);
+          this.cdr.markForCheck();
+        },
+      });
+  }
+
+  resendOtp(): void {
+    if (this.resendCountdown > 0) return;
+
+    this.isLoading    = true;
+    this.errorMessage = '';
+
+    this.http.post<any>('/api/auth/forgot-password/request-otp', {
+      email: this.submittedEmail,
+    }).subscribe({
+      next: () => {
+        this.isLoading = false;
+        this.startResendCountdown();
+        this.cdr.markForCheck();
+      },
+      error: (err) => {
+        this.isLoading    = false;
+        this.errorMessage = this.extractError(err);
+        this.cdr.markForCheck();
+      },
+    });
+  }
+
+  otpDigits = ['', '', '', '', '', ''];
 
   onOtpInput(event: Event, index: number): void {
     const input = event.target as HTMLInputElement;
     const value = input.value.replace(/\D/g, '').slice(-1);
-
-    // ✅ Create a new array reference so Angular detects the change
-    const updated = [...this.otpDigits];
-    updated[index] = value;
-    this.otpDigits = updated;
-    input.value    = value;
-
-    if (value && index < 4) {
-      setTimeout(() => {
-        const next = document.getElementById(`otp-${index + 1}`) as HTMLInputElement;
-        next?.focus();
-      }, 0);
+    this.otpDigits[index] = value;
+    this.otpForm.patchValue({ otp: this.otpDigits.join('') });
+    if (value && index < 5) {
+      const next = document.getElementById(`otp-box-${index + 1}`);
+      next?.focus();
     }
   }
 
   onOtpKeydown(event: KeyboardEvent, index: number): void {
     if (event.key === 'Backspace' && !this.otpDigits[index] && index > 0) {
-      const updated  = [...this.otpDigits];
-      updated[index] = '';
-      this.otpDigits = updated;
-      setTimeout(() => {
-        const prev = document.getElementById(`otp-${index - 1}`) as HTMLInputElement;
-        prev?.focus();
-      }, 0);
+      const prev = document.getElementById(`otp-box-${index - 1}`);
+      prev?.focus();
     }
   }
 
   onOtpPaste(event: ClipboardEvent): void {
     event.preventDefault();
-    const pasted = event.clipboardData?.getData('text').replace(/\D/g, '').slice(0, 5) || '';
-    const updated = ['', '', '', '', ''];
-    pasted.split('').forEach((char, i) => { if (i < 5) updated[i] = char; });
-    this.otpDigits = updated;
+    const text   = event.clipboardData?.getData('text') || '';
+    const digits = text.replace(/\D/g, '').slice(0, 6).split('');
+    digits.forEach((d, i) => { this.otpDigits[i] = d; });
+    this.otpForm.patchValue({ otp: this.otpDigits.join('') });
   }
 
-  onVerifyOtp(): void {
-    if (!this.otpComplete) return;
-    console.log('[ForgotPassword] Verifying OTP:', this.otpValue);
-
-    // ✅ Direct assignment — no setTimeout
-    this.zone.run(() => {
-      this.currentStep = 'newPassword';
-      this.stopResendCountdown();
-    });
-  }
-
-  onResendOtp(): void {
-    if (this.resendCountdown > 0) return;
-    this.otpDigits       = ['', '', '', '', ''];
-    this.resendCountdown = 40;
-    this.startResendCountdown();
-    console.log('[ForgotPassword] Resending OTP to:', this.submittedEmail);
-  }
-
-  private startResendCountdown(): void {
-    this.stopResendCountdown();
-    this.resendInterval = setInterval(() => {
-      this.zone.run(() => {
-        if (this.resendCountdown > 0) {
-          this.resendCountdown--;
-        } else {
-          this.stopResendCountdown();
-        }
-      });
-    }, 1000);
-  }
-
-  private stopResendCountdown(): void {
-    if (this.resendInterval) {
-      clearInterval(this.resendInterval);
-      this.resendInterval = null;
-    }
-  }
-
-  // ── Step 3: Set new password ───────────────────────────────────────────────
-
-  onSubmitNewPassword(): void {
-    this.newPasswordForm.markAllAsTouched();
-    if (this.newPasswordForm.invalid) return;
-
-    console.log('[ForgotPassword] Setting new password for:', this.submittedEmail);
-
-    // ✅ Direct assignment — no setTimeout
-    this.zone.run(() => {
-      this.currentStep = 'success';
-    });
-  }
-
-  toggleNewPassword(): void {
-    this.showNewPassword = !this.showNewPassword;
-  }
-
-  // ── Navigation ─────────────────────────────────────────────────────────────
-
-  goBack(): void {
-    const steps: Step[] = ['email', 'otp', 'newPassword', 'success'];
-    const idx = steps.indexOf(this.currentStep);
-    if (idx > 0) {
-      this.currentStep = steps[idx - 1];
-    } else {
-      this.onClose();
-    }
-  }
-
-  onClose(): void {
-    this.stopResendCountdown();
+  // ── FIX #1: removed stopPropagation — it was swallowing the emit ──────────
+  close(): void {
+    this.stopCountdown();
+    this.isLoading    = false;
+    this.errorMessage = '';
+    this.currentStep  = 'email';
     this.closeModal.emit();
   }
 
-  onBackdropClick(event: MouseEvent): void {
-    if ((event.target as HTMLElement).classList.contains('modal-backdrop')) {
-      this.onClose();
-    }
+  // ── FIX #3: RxJS interval stays inside Angular zone automatically ─────────
+  private startResendCountdown(): void {
+    this.stopCountdown();
+    this.resendCountdown = 300;
+    this.countdownSub = interval(1000)
+      .pipe(take(300))
+      .subscribe(() => {
+        this.resendCountdown--;
+        this.cdr.markForCheck();
+      });
   }
+
+  private stopCountdown(): void {
+    this.countdownSub?.unsubscribe();
+    this.countdownSub = null;
+  }
+
+  ngOnDestroy(): void {
+    this.stopCountdown();
+  }
+
+  private extractError(err: any): string {
+    if (err.status === 0)   return 'Unable to connect. Please check your internet connection.';
+    if (err.status === 400) return err.error?.message || 'Invalid request. Please check your input.';
+    if (err.status === 404) return 'No account found with this email address.';
+    if (err.status === 410) return 'OTP has expired. Please request a new one.';
+    if (err.status === 422) return 'Invalid or expired OTP. Please try again.';
+    if (err.status === 429) return 'Too many attempts. Please wait a few minutes.';
+    return 'Something went wrong. Please try again.';
+  }
+
+  private maskEmail(email: string): string {
+    if (!email) return '';
+    const [user, domain] = email.split('@');
+    const masked = user.slice(0, 2) + '***';
+    return `${masked}@${domain}`;
+  }
+
+  showNewPassword     = false;
+  showConfirmPassword = false;
+
+  toggleNewPassword():     void { this.showNewPassword     = !this.showNewPassword;     }
+  toggleConfirmPassword(): void { this.showConfirmPassword = !this.showConfirmPassword; }
 }
