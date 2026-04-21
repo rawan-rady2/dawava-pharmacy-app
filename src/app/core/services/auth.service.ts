@@ -7,8 +7,8 @@ import { Logger } from '../utils/logger.util';
 
 // ─── Role UUIDs ────────────────────────────────────────────────────────────────
 const ROLE_ADMIN      = 'a4f25d0a-6a19-4f96-91cb-8ea8847f7340';
-const ROLE_PHARMACIST = '';
-const ROLE_MANAGER    = '';
+const ROLE_PHARMACIST = '6f3f9ec1-8f04-4d84-a8f1-c6bb6bce2c44';
+const ROLE_MANAGER    = '08f2d6bb-5668-4c78-a4e9-c6fba58828a9';
 
 // ─── Interfaces ────────────────────────────────────────────────────────────────
 
@@ -244,6 +244,8 @@ export class AuthService {
     }
   }
 
+
+  
   // ─── Private ─────────────────────────────────────────────────────────────────
 
   private clearAllStorage(): void {
